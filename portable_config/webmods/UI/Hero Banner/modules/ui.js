@@ -717,10 +717,10 @@ window.HeroPlugin.UI = {
 
   /**
    * Finds the specific container for banner injection.
-   * Target: .nav-content-container-zl9hQ
+   * Target: .board-content-nPWv1 (the board scroller, so the hero scrolls with the rows)
    */
   findParentElement() {
-    return document.querySelector(".nav-content-container-zl9hQ");
+    return document.querySelector(".board-content-nPWv1");
   },
 
   /**
@@ -799,6 +799,7 @@ window.HeroPlugin.UI = {
 
       this._attachHoverListeners(insertedHero);
       this._attachGenreClickListeners(insertedHero);
+      this._attachScrollEffects(insertedHero, parent);
 
       // Attach Momentum Scroll
       if (window.MetadataModules?.scrollUtils?.ScrollUtils) {
@@ -844,6 +845,66 @@ window.HeroPlugin.UI = {
       overlay.addEventListener("mouseenter", onEnter);
       overlay.addEventListener("mouseleave", onLeave);
     }
+  },
+
+  /**
+   * Scroll-away behaviour: feeds scroll position to CSS as variables, toggles the
+   * top bar background and pauses rotation once the hero is mostly out of view.
+   */
+  _attachScrollEffects(hero, scroller) {
+    const HeroState = window.HeroPlugin.State;
+    if (this._detachScrollEffects) this._detachScrollEffects();
+
+    const boardContainer = scroller.closest(".board-container-DTN_b");
+    let ticking = false;
+
+    const apply = () => {
+      ticking = false;
+      const heroHeight = hero.offsetHeight || 1;
+      // Clamped so the parallax transform can't keep extending the scrollable area
+      const scroll = Math.min(scroller.scrollTop, heroHeight);
+      const progress = scroll / heroHeight;
+
+      hero.style.setProperty("--hero-scroll", scroll.toFixed(1));
+      hero.style.setProperty("--hero-progress", progress.toFixed(4));
+      if (boardContainer) {
+        boardContainer.classList.toggle("hero-scrolled", progress > 0.6);
+      }
+
+      const offscreen = progress > 0.5;
+      if (offscreen !== HeroState.heroOffscreen) {
+        HeroState.heroOffscreen = offscreen;
+        window.dispatchEvent(
+          new CustomEvent(offscreen ? "hero-stop-rotation" : "hero-start-rotation"),
+        );
+      }
+    };
+
+    const onScroll = () => {
+      if (!ticking) {
+        ticking = true;
+        requestAnimationFrame(apply);
+      }
+    };
+
+    // Keyboard/gamepad focus lands the row just below the top bar; mouse clicks don't scroll
+    const onFocusIn = (e) => {
+      const row = e.target.closest?.(".board-row-CoJrZ");
+      if (row && e.target.matches(":focus-visible")) {
+        row.scrollIntoView({ block: "start", behavior: "smooth" });
+      }
+    };
+
+    scroller.addEventListener("scroll", onScroll, { passive: true });
+    scroller.addEventListener("focusin", onFocusIn);
+    HeroState.heroOffscreen = false;
+    apply();
+
+    this._detachScrollEffects = () => {
+      scroller.removeEventListener("scroll", onScroll);
+      scroller.removeEventListener("focusin", onFocusIn);
+      this._detachScrollEffects = null;
+    };
   },
 
   /**

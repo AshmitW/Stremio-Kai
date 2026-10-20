@@ -1,15 +1,16 @@
 
+/* --hero-scroll (px, unitless) and --hero-progress (0-1) are set by ui.js on scroll */
 .hero-container {
     position: relative !important;
-    top: calc(-1 * var(--horizontal-nav-bar-size)) !important;
-    flex: 1 1 auto;
-    height: auto !important;
-    min-height: 0 !important;
-    width: 100%;
+    /* Full-bleed: cancel the board scroller's side padding */
+    margin: 0 -1rem;
+    width: calc(100% + 2rem);
+    height: calc(100% - var(--hero-peek, 42vh));
     overflow: visible;
-    display: inline-block;
-    z-index: 1;
-    right: 0;
+    display: block;
+    z-index: 0;
+    opacity: calc(1 - var(--hero-progress, 0) * 1.15);
+    will-change: opacity;
 }
 
 .hero-image {
@@ -23,6 +24,11 @@
     object-position: center 20%;
     display: block;
     filter: contrast(1.05);
+
+    /* Parallax: pushed down by half the scroll so it drifts up at half speed */
+    transform: translate3d(0, calc(var(--hero-scroll, 0) * 0.5px), 0)
+      scale(calc(1 + var(--hero-progress, 0) * 0.04));
+    will-change: transform;
 
     mask-image: linear-gradient(to top, transparent, black 35%),
       linear-gradient(to right, transparent, black 35%),
@@ -61,7 +67,11 @@
     pointer-events: none;
     overflow: visible;
     filter: var(--shadow);
-    transition: opacity 0.3s ease;
+
+    /* Drifts at ~0.7x scroll speed and fades out ahead of the artwork */
+    transform: translate3d(0, calc(var(--hero-scroll, 0) * 0.3px), 0);
+    opacity: calc(1 - var(--hero-progress, 0) * 1.8);
+    will-change: transform, opacity;
 }
 
 /* Vertical Media Queries for Overlay Compactness */

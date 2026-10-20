@@ -780,7 +780,16 @@
                       : currentRowIdx - 1;
 
                   const targetRow = allRows[nextRowIdx];
-                  if (!targetRow) return;
+                  if (!targetRow) {
+                    // Up from the first row reveals the hero again
+                    if (e.key === "ArrowUp") {
+                      boardRow.parentElement?.scrollTo({
+                        top: 0,
+                        behavior: "smooth",
+                      });
+                    }
+                    return;
+                  }
 
                   const targetItems = Array.from(
                     targetRow.querySelectorAll(

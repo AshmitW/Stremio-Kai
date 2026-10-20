@@ -17,47 +17,64 @@
     z-index: 5;
 }
 
-/* Board Content (Bottom - Priority) */
-body.hero-active .board-container-DTN_b .board-content-container-ToQTz .board-content-nPWv1 {
-    position: relative !important; /* Reset absolute */
-    /* top: calc(-1 * var(--horizontal-nav-bar-size)) !important; */
-
-    flex: 0 0 42vh !important; /* Target height */
-    min-height: 460px !important; 
-    bottom: auto !important;
-    width: 100%;
-    z-index: 5; /* Ensure above hero if overlap ever happened (shouldn't with flex) */
-    
-    scrollbar-width: none;
-
-    scroll-snap-type: y mandatory;
-    overflow-y: auto;
+/* Hero lives inside the board scroller, so the content area starts under the top bar */
+body.hero-active .board-container-DTN_b .nav-content-container-zl9hQ {
+    top: 0;
 }
 
-/* Tall Screens / 16:10 (e.g. 1920x1200) */
-@media (max-aspect-ratio: 16/10) {
-    body.hero-active .board-container-DTN_b .board-content-container-ToQTz .board-content-nPWv1 {
-        min-height: 460px !important;
-    }
+/* Board Content - single scroller holding the hero followed by the rows */
+body.hero-active .board-container-DTN_b .board-content-container-ToQTz .board-content-nPWv1 {
+    position: relative !important; /* Offset parent for row lazy-loading math */
+
+    /* How much of the first row shows below the hero on load */
+    --hero-peek: max(34vh, 360px);
+
+    flex: 1 1 auto !important;
+    min-height: 0 !important;
+    width: 100%;
+    z-index: 5;
+
+    scrollbar-width: none;
+    overflow-y: auto;
 }
 
 /* UltraWide (21:9) - e.g., 3440x1440 */
 @media (min-aspect-ratio: 21/9) {
     body.hero-active .board-container-DTN_b .board-content-container-ToQTz .board-content-nPWv1 {
-        min-height: 540px !important;
+        --hero-peek: 440px;
     }
 }
 
 /* Super UltraWide (32:9) - e.g., 5120x1440 */
 @media (min-aspect-ratio: 32/9) {
     body.hero-active .board-container-DTN_b .board-content-container-ToQTz .board-content-nPWv1 {
-        min-height: 670px !important;
+        --hero-peek: 560px;
     }
 }
 
-.board-row-CoJrZ {
-    scroll-snap-align: start;
-    scroll-snap-stop: always;
+/* Rows paint above the hero artwork and stop below the top bar when scrolled to */
+body.hero-active .board-container-DTN_b .board-row-CoJrZ {
+    position: relative;
+    z-index: 1;
+    scroll-margin-top: var(--horizontal-nav-bar-size);
+}
+
+/* Top bar picks up a glass background once rows slide under it */
+body.hero-active .board-container-DTN_b .horizontal-nav-bar-ji5GB::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    background: var(--background);
+    backdrop-filter: var(--backdrop-filter);
+    box-shadow: var(--box-shadow);
+    opacity: 0;
+    transition: opacity 0.3s ease;
+    pointer-events: none;
+}
+
+body.hero-active .board-container-DTN_b.hero-scrolled .horizontal-nav-bar-ji5GB::before {
+    opacity: 1;
 }
 
 /*=====  End of GRID  ======*/

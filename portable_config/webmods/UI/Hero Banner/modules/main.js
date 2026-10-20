@@ -365,7 +365,8 @@ window.HeroPlugin.Main = {
     function startAutoRotate() {
       if (HeroState.autoRotateInterval)
         clearInterval(HeroState.autoRotateInterval);
-      if (HeroState.isAutoRotating) {
+      // Hover-leave also requests a start; stay paused while scrolled away
+      if (HeroState.isAutoRotating && !HeroState.heroOffscreen) {
         HeroState.autoRotateInterval = setInterval(() => {
           HeroState.currentIndex =
             (HeroState.currentIndex + 1) % HeroState.heroTitles.length;
