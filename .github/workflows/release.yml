@@ -1,0 +1,143 @@
+name: Release
+
+# Push a tag like v4.8.0-ashmit.1 to build and publish a release.
+# Run manually (Actions > Release > Run workflow) for a dry run that only uploads artifacts.
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 90
+    env:
+      GH_TOKEN: ${{ github.token }}
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      # Ship files byte-for-byte as committed instead of letting Windows git rewrite line endings
+      - name: Disable autocrlf
+        run: git config --global core.autocrlf false
+
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Read versions
+        run: |
+          set -euo pipefail
+          VERSION=$(sed -n 's/.*CURRENT_VERSION: *"\([^"]*\)".*/\1/p' portable_config/webmods/UI/update-notification.js)
+          [[ -n "$VERSION" ]] || { echo "::error::CURRENT_VERSION not found in update-notification.js"; exit 1; }
+          if [[ "$GITHUB_REF_TYPE" == "tag" && "$GITHUB_REF_NAME" != "v$VERSION" ]]; then
+            echo "::error::Tag $GITHUB_REF_NAME does not match CURRENT_VERSION \"$VERSION\" in update-notification.js"
+            exit 1
+          fi
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+          grep -E '^[A-Z_]+=' installer/base.env >> "$GITHUB_ENV"
+
+      # The base build is mirrored into this repo once so releases keep working if upstream assets move
+      - name: Fetch base build
+        run: |
+          set -euo pipefail
+          mkdir -p work
+          MIRROR_TAG="base-$BASE_TAG"
+          if ! gh release download "$MIRROR_TAG" -R "$GITHUB_REPOSITORY" -p "$BASE_ASSET" -D work; then
+            gh release download "$BASE_TAG" -R "$BASE_REPO" -p "$BASE_ASSET" -D work
+            gh release create "$MIRROR_TAG" "work/$BASE_ASSET" -R "$GITHUB_REPOSITORY" \
+              --target "$BASE_COMMIT" --prerelease --latest=false \
+              --title "Base build $BASE_TAG (mirror)" \
+              --notes "Unmodified \`$BASE_ASSET\` from $BASE_REPO $BASE_TAG. The release workflow builds on top of it. Download a regular release instead."
+          fi
+
+      - name: Assemble build
+        run: |
+          set -euo pipefail
+          7z x -y -o"work/base" "work/$BASE_ASSET" > /dev/null
+          EXE=$(find work/base -iname stremio.exe -not -path '*/portable_config/*' | head -n 1)
+          if [[ -z "$EXE" ]]; then
+            echo "::error::stremio.exe not found in $BASE_ASSET"
+            find work/base -maxdepth 3
+            exit 1
+          fi
+          mv "$(dirname "$EXE")" work/Stremio-Kai
+          cp -R portable_config/. work/Stremio-Kai/portable_config/
+
+          # Update package: every portable_config file added or changed since the base build
+          mkdir -p work/update
+          git diff --name-only -z --diff-filter=AMR "$BASE_COMMIT" HEAD -- portable_config |
+            while IFS= read -r -d '' f; do
+              mkdir -p "work/update/$(dirname "$f")"
+              cp "$f" "work/update/$f"
+            done
+          [[ -n "$(ls -A work/update)" ]] || { echo "::error::No portable_config changes since $BASE_COMMIT"; exit 1; }
+
+          mkdir -p work/out
+          (cd work && 7z a -t7z -mx=7 "out/Stremio-Kai_v${VERSION}.7z" Stremio-Kai > /dev/null)
+          (cd work/update && 7z a -t7z -mx=9 "../out/Stremio-Kai_v${VERSION}_Update.7z" portable_config > /dev/null)
+
+      - name: Build installers
+        shell: pwsh
+        env:
+          # Pinned so builds don't change when the runner image or Inno Setup updates
+          INNO_TAG: is-6_7_3
+          INNO_EXE: innosetup-6.7.3.exe
+        run: |
+          gh release download $env:INNO_TAG -R jrsoftware/issrc -p $env:INNO_EXE -D $env:RUNNER_TEMP
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          $innoDir = "$env:RUNNER_TEMP\inno"
+          Start-Process -Wait -FilePath "$env:RUNNER_TEMP\$env:INNO_EXE" `
+            -ArgumentList "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART", "/CURRENTUSER", "/DIR=$innoDir"
+          $iscc = "$innoDir\ISCC.exe"
+          if (-not (Test-Path $iscc)) { throw "ISCC.exe not found after installing $env:INNO_EXE" }
+          $work = "$env:GITHUB_WORKSPACE\work"
+          & $iscc /Q "/DAppVersion=$env:VERSION" "/DSourceDir=$work\Stremio-Kai" "/DOutputDir=$work\out" installer\stremio-kai.iss
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          & $iscc /Q "/DAppVersion=$env:VERSION" "/DSourceDir=$work\update" "/DOutputDir=$work\out" /DUpdateOnly=1 installer\stremio-kai.iss
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          Get-ChildItem "$work\out" | Format-Table Name, @{ n = "MB"; e = { [math]::Round($_.Length / 1MB, 1) } }
+
+      - name: Upload dry-run artifacts
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/upload-artifact@v4
+        with:
+          name: stremio-kai-v${{ env.VERSION }}
+          path: work/out/*
+          retention-days: 3
+          compression-level: 0
+
+      - name: Publish release
+        if: github.ref_type == 'tag'
+        run: |
+          set -euo pipefail
+          NOTES="installer/notes/$GITHUB_REF_NAME.md"
+          if [[ ! -f "$NOTES" ]]; then
+            PREV=$(git describe --tags --abbrev=0 --match 'v*' "$GITHUB_REF_NAME^" 2>/dev/null || echo "$BASE_COMMIT")
+            NOTES=work/notes.md
+            {
+              echo "Fork of Stremio Kai, built on [$BASE_TAG](https://github.com/$BASE_REPO/releases/tag/$BASE_TAG)."
+              echo
+              echo "## Changes"
+              git log --no-merges --format='- %s' "$PREV..$GITHUB_REF_NAME"
+              echo
+              echo "## Downloads"
+              echo "- \`StremioKai_v${VERSION}_Setup.exe\`: installer, recommended for new installs."
+              echo "- \`Stremio-Kai_v${VERSION}.7z\`: portable build, extract anywhere outside Program Files."
+              echo "- \`StremioKai_v${VERSION}_Update.exe\` / \`Stremio-Kai_v${VERSION}_Update.7z\`: changed files only, for an existing Stremio Kai $BASE_TAG install or an earlier fork release."
+              echo
+              echo "The installers are not code-signed, so Windows SmartScreen may warn on first run. Choose \"More info\" then \"Run anyway\"."
+            } > "$NOTES"
+          fi
+          gh release create "$GITHUB_REF_NAME" work/out/* \
+            --verify-tag --latest \
+            --title "Stremio Kai $GITHUB_REF_NAME" \
+            --notes-file "$NOTES"
