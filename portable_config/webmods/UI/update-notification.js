@@ -11,10 +11,11 @@
 
   // Configuration
   window.KaiUpdatePlugin.config = {
-    CURRENT_VERSION: "4.8.0",
+    // Fork version: upstream base + fork revision. Must match this fork's release tag without the "v".
+    CURRENT_VERSION: "4.8.0-ashmit.1",
     REPO_URL:
-      "https://api.github.com/repos/allecsc/Stremio-Kai/releases/latest",
-    RELEASES_URL: "https://allecsc.github.io/Stremio-Kai/changelog.html",
+      "https://api.github.com/repos/AshmitW/Stremio-Kai/releases/latest",
+    RELEASES_URL: "https://github.com/AshmitW/Stremio-Kai/releases/latest",
     TOAST_AUTO_HIDE_MS: 30000,
     LOGO_PULSING_MAX_RETRIES: 10,
     LOGO_PULSING_RETRY_INTERVAL_MS: 1000,

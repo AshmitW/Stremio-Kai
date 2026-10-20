@@ -1,6 +1,11 @@
 <img height="0" alt="AIO-logo-allecsc" src="https://github.com/user-attachments/assets/4ff6d062-8b2e-4cfe-9d14-358834142c13" />
 <img width="0" alt="Stremio-Kai-v4.0" src="https://github.com/user-attachments/assets/bd873188-cc6b-45c4-bf82-289e17752b00" />
 
+> [!NOTE]
+> **This is a fork of [allecsc/Stremio-Kai](https://github.com/allecsc/Stremio-Kai).** I forked it to rework the home page. Upstream pins the hero banner to the top half of the screen and only the catalogue rows below it scroll. In this fork the whole page scrolls as one, and the banner fades away as you move down. Everything else tracks upstream.
+>
+> Downloads for this fork are on its [Releases page](https://github.com/AshmitW/Stremio-Kai/releases), and the in-app update check points there. The original README follows.
+
 <div align="center">
 <img width="200" alt="Stremio-Kai-v4.0" src="https://github.com/user-attachments/assets/36bc9425-24bc-4334-ac66-9c5645319afc" />
 

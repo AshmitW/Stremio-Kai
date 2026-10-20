@@ -11,7 +11,7 @@
   window.KaiNavigation.initialized = true;
 
   const CONFIG = {
-    RELEASES_URL: "https://allecsc.github.io/Stremio-Kai/changelog.html",
+    RELEASES_URL: "https://github.com/AshmitW/Stremio-Kai/releases/latest",
   };
 
   const NavigationManager = {
